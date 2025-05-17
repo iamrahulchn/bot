@@ -32,7 +32,7 @@ async def start(message: Message):
             users[ref_by]["refs"].add(uid)
 
     welcome = (
-        "🤖 <b>Welcome to stockodetrading Referral Bot</b>\n\n"
+        "🤖 <b>Welcome to Referwala By Stockode Referral Bot</b>\n\n"
         "✔️ Refer and Earn Cash\n\n"
         "🛡️ <b>Subscribe to all platforms to activate your referral bot:</b>\n\n"
         "✅ Telegram Channels (Required)\n📸 Instagram & ▶️ YouTube (Optional but appreciated!)"
@@ -41,9 +41,9 @@ async def start(message: Message):
     sub_buttons = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ @stockode_learning", url="https://t.me/stockode_learning")],
         [InlineKeyboardButton(text="✅ @stockodeofficial", url="https://t.me/stockodeofficial")],
-        [InlineKeyboardButton(text="✔️ Done Subscribed! Click ✅Check", callback_data="check_subs")],
         [InlineKeyboardButton(text="📸 Follow on Instagram", url="https://instagram.com/stockode.official")],
-        [InlineKeyboardButton(text="▶️ Subscribe on YouTube", url="https://youtube.com/@stockodeofficial")]
+        [InlineKeyboardButton(text="▶️ Subscribe on YouTube", url="https://youtube.com/@stockodeofficial")],
+        [InlineKeyboardButton(text="✔️ Done Subscribed! Click ✅Check", callback_data="check_subs")],
     
     ])
     await message.answer(welcome, reply_markup=sub_buttons)
