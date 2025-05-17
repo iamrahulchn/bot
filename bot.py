@@ -7,7 +7,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.storage.memory import MemoryStorage
 
 API_TOKEN = os.getenv("BOT_TOKEN")
-CHANNELS = ["@stockode_learning", "@stockode.official"]
+CHANNELS = ["@stockode_learning", "@stockodeofficial"]
 REF_REWARD = 25
 MIN_WITHDRAW = 500
 
@@ -77,7 +77,7 @@ def main_menu():
     kb.button(text="🎁 Bonus", callback_data="bonus")
     kb.button(text="💸 Withdraw", callback_data="withdraw")
     kb.button(text="🏦 Set Wallet", callback_data="set_wallet")
-    kb.button(text="🛠 Support", url="https://t.me/iamrahulchn")
+    kb.button(text="🛠 Support", url="https://instagram.com/stockode.official")
     kb.adjust(2)
     return kb.as_markup()
 
