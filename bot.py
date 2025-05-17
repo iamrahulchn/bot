@@ -7,12 +7,28 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
+import json
 
 API_TOKEN = os.getenv("BOT_TOKEN")
 CHANNELS = ["@stockodeofficial"]
 REF_REWARD = 25
 MIN_WITHDRAW = 500
 admin_id = 7473008936
+
+DATA_FILE = "users.json"
+
+def load_users():
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE, "r") as f:
+            return json.load(f)
+    return {}
+
+def save_users():
+    with open(DATA_FILE, "w") as f:
+        json.dump(users, f)
+
+users = load_users()  # user_id: {'ref_by': user_id, 'wallet': str, 'refs': set()}
+
 
 bot = Bot(token=API_TOKEN, parse_mode=ParseMode.HTML)
 dp = Dispatcher(storage=MemoryStorage())
@@ -25,18 +41,17 @@ class WalletState(StatesGroup):
 
 
 # Start command
-@dp.message(F.text.startswith("/start"))
+@dp.message(F.text == "/start")
 async def start(message: Message):
-    uid = message.from_user.id
+    uid = str(message.from_user.id)
     if uid not in users:
         ref_by = None
         if message.text.startswith("/start "):
             ref = message.text.split(" ")[1]
-            if ref != str(uid):
-                ref_by = int(ref)
-        users[uid] = {"ref_by": ref_by, "wallet": "", "refs": set()}
-        if ref_by and ref_by in users:
-            users[ref_by]["refs"].add(uid)
+            if ref != uid:
+                ref_by = ref
+        users[uid] = {"ref_by": ref_by, "wallet": "", "refs": []}
+        save_users()
 
     welcome = (
         "🤖 <b>Welcome to Referwala By Stockode Referral Bot</b>\n\n"
@@ -111,10 +126,10 @@ async def referrals(callback: types.CallbackQuery):
 # Balance
 @dp.callback_query(F.data == "balance")
 async def balance(callback: types.CallbackQuery):
-    uid = callback.from_user.id
-    refs = users.get(uid, {}).get("refs", set())
+    uid = str(callback.from_user.id)
+    refs = users.get(uid, {}).get("refs", [])
     bal = len(refs) * REF_REWARD
-    await callback.message.answer(f"💰 <b>Your balance is ₹{bal}</b>")
+    await callback.message.answer(f"💰 Your balance is ₹{bal}")
 
 
 # Bonus (not yet implemented)
@@ -131,23 +146,38 @@ async def withdraw(callback: types.CallbackQuery):
 
 # 💳 Set Wallet
 @dp.callback_query(F.data == "set_wallet")
-async def ask_wallet(callback: types.CallbackQuery, state: FSMContext):
+async def set_wallet(callback: types.CallbackQuery, state: FSMContext):
+    await callback.message.answer("💳 Please send your UPI ID or Wallet address to save it.")
     await state.set_state(WalletState.waiting_for_wallet)
-    await callback.message.answer("💳 Please enter your wallet address (e.g., UPI ID or Paytm/PhonePe/Bank):")
+
 
 @dp.message(WalletState.waiting_for_wallet)
-async def save_wallet(message: types.Message, state: FSMContext):
-    uid = message.from_user.id
-    wallet = message.text.strip()
-
-    if uid in users:
-        users[uid]["wallet"] = wallet
-    else:
-        users[uid] = {"ref_by": None, "wallet": wallet, "refs": set()}
-
-    await message.answer(f"✅ Wallet address saved: <code>{wallet}</code>")
+async def process_wallet(message: types.Message, state: FSMContext):
+    uid = str(message.from_user.id)
+    users[uid]["wallet"] = message.text.strip()
+    save_users()
+    await message.answer("✅ Your wallet has been saved successfully!")
     await state.clear()
 
+
+@dp.callback_query(F.data == "withdraw")
+async def withdraw(callback: types.CallbackQuery):
+    uid = str(callback.from_user.id)
+    user = users.get(uid, {})
+    refs = user.get("refs", [])
+    bal = len(refs) * REF_REWARD
+    wallet = user.get("wallet", "")
+
+    if not wallet:
+        await callback.message.answer("⚠️ You must set your wallet first using 🏦 Set Wallet.")
+        return
+
+    if bal < MIN_WITHDRAW:
+        await callback.message.answer(f"❌ Minimum withdrawal is ₹{MIN_WITHDRAW}. You only have ₹{bal}.")
+        return
+
+    await callback.message.answer(f"✅ Withdrawal request for ₹{bal} submitted to {wallet}.")
+    await bot.send_message(admin_id, f"💸 New withdrawal request:\nUser: {uid}\nAmount: ₹{bal}\nWallet: {wallet}")
 
 # Background polling
 async def main():
