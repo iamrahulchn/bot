@@ -1,13 +1,12 @@
 import os
-import json
 import asyncio
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.enums import ParseMode
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram import Router
-from aiohttp import web
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import StatesGroup, State
 
 API_TOKEN = os.getenv("BOT_TOKEN")
 CHANNELS = ["@stockodeofficial"]
@@ -17,139 +16,147 @@ admin_id = 7473008936
 
 bot = Bot(token=API_TOKEN, parse_mode=ParseMode.HTML)
 dp = Dispatcher(storage=MemoryStorage())
-router = Router()
-dp.include_router(router)
 
-USERS_FILE = "users.json"
-if not os.path.exists(USERS_FILE):
-    with open(USERS_FILE, "w") as f:
-        json.dump({}, f)
+users = {}  # user_id: {'ref_by': user_id, 'wallet': str, 'refs': set()}
 
-def load_users():
-    with open(USERS_FILE, "r") as f:
-        return json.load(f)
+# FSM state for wallet input
+class WalletState(StatesGroup):
+    waiting_for_wallet = State()
 
-def save_users(users):
-    with open(USERS_FILE, "w") as f:
-        json.dump(users, f)
 
-users = load_users()
-
+# Start command
 @dp.message(F.text.startswith("/start"))
 async def start(message: Message):
-    uid = str(message.from_user.id)
+    uid = message.from_user.id
     if uid not in users:
         ref_by = None
         if message.text.startswith("/start "):
             ref = message.text.split(" ")[1]
-            if ref != uid:
-                ref_by = ref
-        users[uid] = {"ref_by": ref_by, "wallet": "", "refs": []}
-        save_users(users)
+            if ref != str(uid):
+                ref_by = int(ref)
+        users[uid] = {"ref_by": ref_by, "wallet": "", "refs": set()}
+        if ref_by and ref_by in users:
+            users[ref_by]["refs"].add(uid)
 
+    welcome = (
+        "🤖 <b>Welcome to Referwala By Stockode Referral Bot</b>\n\n"
+        "✔️ Refer and Earn Cash\n\n"
+        "🛡️ <b>Subscribe to all platforms to activate your referral bot:</b>\n\n"
+        "✅ Telegram Channels (Required)\n📸 Instagram & ▶️ YouTube (Optional but appreciated!)"
+
+    )
     sub_buttons = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ @stockodeofficial", url="https://t.me/stockodeofficial")],
+        [InlineKeyboardButton(text="📸 Follow on Instagram", url="https://instagram.com/stockode.official")],
+        [InlineKeyboardButton(text="▶️ Subscribe on YouTube", url="https://youtube.com/@stockodeofficial")],
         [InlineKeyboardButton(text="✔️ Done Subscribed! Click ✅Check", callback_data="check_subs")]
+    
     ])
-    await message.answer(
-        "<b>🛡️ Subscribe Channels if you want to start the bot and earn from it</b>",
-        reply_markup=sub_buttons
-    )
+    await message.answer(welcome, reply_markup=sub_buttons)
 
+
+# Check subscription
 @dp.callback_query(F.data == "check_subs")
 async def check_subs(callback: types.CallbackQuery):
-    uid = str(callback.from_user.id)
+    uid = callback.from_user.id
     not_joined = []
 
     for channel in CHANNELS:
         try:
-            member = await bot.get_chat_member(channel, int(uid))
+            member = await bot.get_chat_member(channel, uid)
             if member.status not in ["member", "administrator", "creator"]:
                 not_joined.append(channel)
         except:
             not_joined.append(channel)
 
     if not_joined:
-        await callback.message.answer("❌ You must join all channels to start using the bot.\nPlease join and click ✅Check again.")
+        await callback.message.answer(
+            "❌ You must join all channels to start using the bot.\nPlease join and click ✅Check again."
+        )
     else:
-        await callback.message.answer("✅ Subscription verified! Welcome 🎉\nChoose an option below:", reply_markup=main_menu())
+        await callback.message.answer(
+            "✅ Subscription verified! Welcome 🎉\nChoose an option below:",
+            reply_markup=main_menu()
+        )
+
 
 # Main menu
-
 def main_menu():
     kb = InlineKeyboardBuilder()
     kb.button(text="💰 Balance", callback_data="balance")
     kb.button(text="👥 Referrals", callback_data="referrals")
+    kb.button(text="🎁 Bonus", callback_data="bonus")
     kb.button(text="💸 Withdraw", callback_data="withdraw")
     kb.button(text="🏦 Set Wallet", callback_data="set_wallet")
-    kb.button(text="🛠 Support", url="https://t.me/iamrahulchn")
+    kb.button(text="🛠 Support", url="https://instagram.com/stockode.official")
     kb.adjust(2)
     return kb.as_markup()
+
 
 # Referrals
 @dp.callback_query(F.data == "referrals")
 async def referrals(callback: types.CallbackQuery):
-    uid = str(callback.from_user.id)
+    uid = callback.from_user.id
     data = users.get(uid, {})
-    total_refs = len(data.get("refs", []))
+    total_refs = len(data.get("refs", set()))
     link = f"https://t.me/earningtotrade_bot?start={uid}"
     msg = (
-        f"➡️ Total invites: <b>{total_refs}</b>\n"
-        f"🚥 Per Referral: ₹{REF_REWARD}\n"
-        f"🔗 Your invite link: {link}"
+        f"➡️ <b>Total invites:</b> {total_refs}\n"
+        f"🚥 <b>Per Referral:</b> ₹{REF_REWARD}\n"
+        f"🔗 <b>Your invite link:</b> {link}"
     )
     await callback.message.answer(msg)
+
 
 # Balance
 @dp.callback_query(F.data == "balance")
 async def balance(callback: types.CallbackQuery):
-    uid = str(callback.from_user.id)
-    refs = users.get(uid, {}).get("refs", [])
+    uid = callback.from_user.id
+    refs = users.get(uid, {}).get("refs", set())
     bal = len(refs) * REF_REWARD
-    await callback.message.answer(f"💰 Your balance is ₹{bal}")
+    await callback.message.answer(f"💰 <b>Your balance is ₹{bal}</b>")
 
-# Set Wallet
-@dp.callback_query(F.data == "set_wallet")
-async def set_wallet(callback: types.CallbackQuery):
-    await callback.message.answer("💳 Please enter your UPI ID to set your wallet.")
-    dp.message.register(handle_wallet_input)
 
-async def handle_wallet_input(message: Message):
-    uid = str(message.from_user.id)
-    wallet = message.text.strip()
-    users[uid]["wallet"] = wallet
-    save_users(users)
-    await message.answer("✅ Wallet set successfully!")
+# Bonus (not yet implemented)
+@dp.callback_query(F.data == "bonus")
+async def bonus(callback: types.CallbackQuery):
+    await callback.message.answer("🎁 Bonus system coming soon!")
 
-# Withdraw (Placeholder logic)
+
+# Withdraw (not yet implemented)
 @dp.callback_query(F.data == "withdraw")
 async def withdraw(callback: types.CallbackQuery):
-    uid = str(callback.from_user.id)
-    refs = users.get(uid, {}).get("refs", [])
-    bal = len(refs) * REF_REWARD
-    if bal >= MIN_WITHDRAW:
-        await callback.message.answer("✅ Your withdrawal request has been submitted.")
+    await callback.message.answer("💸 Withdrawal system coming soon!")
+
+
+# 💳 Set Wallet
+@dp.callback_query(F.data == "set_wallet")
+async def ask_wallet(callback: types.CallbackQuery, state: FSMContext):
+    await state.set_state(WalletState.waiting_for_wallet)
+    await callback.message.answer("💳 Please enter your wallet address (e.g., UPI ID or Paytm/PhonePe/Bank):")
+
+@dp.message(WalletState.waiting_for_wallet)
+async def save_wallet(message: types.Message, state: FSMContext):
+    uid = message.from_user.id
+    wallet = message.text.strip()
+
+    if uid in users:
+        users[uid]["wallet"] = wallet
     else:
-        await callback.message.answer(f"❌ Minimum withdrawal amount is ₹{MIN_WITHDRAW}. Your current balance is ₹{bal}.")
+        users[uid] = {"ref_by": None, "wallet": wallet, "refs": set()}
 
-# Webhook setup
-async def on_startup(app):
-    webhook_url = os.getenv("WEBHOOK_URL")
-    await bot.set_webhook(webhook_url)
+    await message.answer(f"✅ Wallet address saved: <code>{wallet}</code>")
+    await state.clear()
 
-async def on_shutdown(app):
-    await bot.delete_webhook()
 
-async def handle_request(request):
-    body = await request.json()
-    update = types.Update(**body)
-    await dp.feed_update(bot, update)
-    return web.Response()
+# Background polling
+async def main():
+    try:
+        await dp.start_polling(bot)
+    finally:
+        await bot.session.close()
 
-app = web.Application()
-app.router.add_post("/webhook", handle_request)
-app.on_startup.append(on_startup)
-app.on_shutdown.append(on_shutdown)
 
 if __name__ == "__main__":
-    web.run_app(app, port=int(os.getenv("PORT", 10000)))
+    PORT = int(os.getenv("PORT", 10000))
+    asyncio.run(main())
