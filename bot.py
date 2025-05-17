@@ -7,9 +7,10 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.storage.memory import MemoryStorage
 
 API_TOKEN = os.getenv("BOT_TOKEN")
-CHANNELS = ["@stockode_learning", "@stockodeofficial"]
+CHANNELS = ["@stockodeofficial"]
 REF_REWARD = 25
 MIN_WITHDRAW = 500
+admin_id = 7473008936
 
 bot = Bot(token=API_TOKEN, parse_mode=ParseMode.HTML)
 dp = Dispatcher(storage=MemoryStorage())
@@ -39,7 +40,6 @@ async def start(message: Message):
 
     )
     sub_buttons = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✅ @stockode_learning", url="https://t.me/stockode_learning")],
         [InlineKeyboardButton(text="✅ @stockodeofficial", url="https://t.me/stockodeofficial")],
         [InlineKeyboardButton(text="📸 Follow on Instagram", url="https://instagram.com/stockode.official")],
         [InlineKeyboardButton(text="▶️ Subscribe on YouTube", url="https://youtube.com/@stockodeofficial")],
