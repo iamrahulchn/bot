@@ -8,7 +8,7 @@ from aiohttp import web
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-PORT = int(os.getenv("PORT", 8000))  # <-- Here we get PORT from env or default 8000
+PORT = int(os.getenv("PORT", 10000))  # <-- Here we get PORT from env or default 8000
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
