@@ -5,6 +5,8 @@ from aiogram.enums import ParseMode
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import StatesGroup, State
 
 API_TOKEN = os.getenv("BOT_TOKEN")
 CHANNELS = ["@stockodeofficial"]
@@ -16,6 +18,10 @@ bot = Bot(token=API_TOKEN, parse_mode=ParseMode.HTML)
 dp = Dispatcher(storage=MemoryStorage())
 
 users = {}  # user_id: {'ref_by': user_id, 'wallet': str, 'refs': set()}
+
+# FSM state for wallet input
+class WalletState(StatesGroup):
+    waiting_for_wallet = State()
 
 
 # Start command
@@ -123,10 +129,24 @@ async def withdraw(callback: types.CallbackQuery):
     await callback.message.answer("💸 Withdrawal system coming soon!")
 
 
-# Set Wallet (not yet implemented)
+# 💳 Set Wallet
 @dp.callback_query(F.data == "set_wallet")
-async def set_wallet(callback: types.CallbackQuery):
-    await callback.message.answer("🏦 Wallet setup coming soon!")
+async def ask_wallet(callback: types.CallbackQuery, state: FSMContext):
+    await state.set_state(WalletState.waiting_for_wallet)
+    await callback.message.answer("💳 Please enter your wallet address (e.g., UPI ID or Paytm/PhonePe/Bank):")
+
+@dp.message(WalletState.waiting_for_wallet)
+async def save_wallet(message: types.Message, state: FSMContext):
+    uid = message.from_user.id
+    wallet = message.text.strip()
+
+    if uid in users:
+        users[uid]["wallet"] = wallet
+    else:
+        users[uid] = {"ref_by": None, "wallet": wallet, "refs": set()}
+
+    await message.answer(f"✅ Wallet address saved: <code>{wallet}</code>")
+    await state.clear()
 
 
 # Background polling
