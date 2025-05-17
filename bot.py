@@ -1,122 +1,137 @@
 import os
-import logging
 import asyncio
 from aiogram import Bot, Dispatcher, types, F
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.enums import ParseMode
-from aiogram.filters import CommandStart
-from aiogram import Router
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.fsm.storage.memory import MemoryStorage
 
-logging.basicConfig(level=logging.INFO)
+API_TOKEN = os.getenv("BOT_TOKEN")
+CHANNELS = ["@stockode_learning", "@stockode.official"]
+REF_REWARD = 25
+MIN_WITHDRAW = 500
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = int(os.getenv("ADMIN_ID", 7473008936))
+bot = Bot(token=API_TOKEN, parse_mode=ParseMode.HTML)
+dp = Dispatcher(storage=MemoryStorage())
 
-bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher()
-router = Router()
-
-REQUIRED_CHANNELS = ["stockode_learning", "stockode.official"]
-
-
-def join_channels_keyboard():
-    keyboard = InlineKeyboardMarkup(row_width=1)
-    for channel in REQUIRED_CHANNELS:
-        keyboard.add(InlineKeyboardButton(f"✅ Join @{channel}", url=f"https://t.me/{channel}"))
-    keyboard.add(InlineKeyboardButton("✔️ Done Subscribed! Click ✅Check", callback_data="check_subscriptions"))
-    return keyboard
+users = {}  # user_id: {'ref_by': user_id, 'wallet': str, 'refs': set()}
 
 
-def main_menu_keyboard():
-    keyboard = InlineKeyboardMarkup(row_width=2)
-    keyboard.add(
-        InlineKeyboardButton("💰 Balance", callback_data="balance"),
-        InlineKeyboardButton("🤝 Referrals", callback_data="referrals"),
-        InlineKeyboardButton("🎁 Bonus", callback_data="bonus"),
-        InlineKeyboardButton("💸 Withdraw", callback_data="withdraw"),
-        InlineKeyboardButton("👛 Set Wallet", callback_data="set_wallet"),
-        InlineKeyboardButton("🛠 Support", callback_data="support")
+# Start command
+@dp.message(F.text.startswith("/start"))
+async def start(message: Message):
+    uid = message.from_user.id
+    if uid not in users:
+        ref_by = None
+        if message.text.startswith("/start "):
+            ref = message.text.split(" ")[1]
+            if ref != str(uid):
+                ref_by = int(ref)
+        users[uid] = {"ref_by": ref_by, "wallet": "", "refs": set()}
+        if ref_by and ref_by in users:
+            users[ref_by]["refs"].add(uid)
+
+    welcome = (
+        "🤖 <b>Welcome to stockodetrading Referral Bot</b>\n\n"
+        "✔️ Refer and Earn Cash\n\n"
+        "🛡️ <b>Subscribe Channels if you want to start the bot and earn from it</b>"
     )
-    return keyboard
+    sub_buttons = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ @stockode_learning", url="https://t.me/stockode_learning")],
+        [InlineKeyboardButton(text="✅ @stockode.official", url="https://t.me/stockode.official")],
+        [InlineKeyboardButton(text="✔️ Done Subscribed! Click ✅Check", callback_data="check_subs")]
+    ])
+    await message.answer(welcome, reply_markup=sub_buttons)
 
 
-async def is_user_subscribed(user_id: int):
-    for channel in REQUIRED_CHANNELS:
+# Check subscription
+@dp.callback_query(F.data == "check_subs")
+async def check_subs(callback: types.CallbackQuery):
+    uid = callback.from_user.id
+    not_joined = []
+
+    for channel in CHANNELS:
         try:
-            member = await bot.get_chat_member(chat_id=f"@{channel}", user_id=user_id)
-            if member.status in ['left', 'kicked']:
-                return False
+            member = await bot.get_chat_member(channel, uid)
+            if member.status not in ["member", "administrator", "creator"]:
+                not_joined.append(channel)
         except:
-            return False
-    return True
+            not_joined.append(channel)
+
+    if not_joined:
+        await callback.message.answer(
+            "❌ You must join all channels to start using the bot.\nPlease join and click ✅Check again."
+        )
+    else:
+        await callback.message.answer(
+            "✅ Subscription verified! Welcome 🎉\nChoose an option below:",
+            reply_markup=main_menu()
+        )
 
 
-@router.message(CommandStart())
-async def start_handler(message: types.Message):
-    user_id = message.from_user.id
-    await message.answer(
-        "👋 *Welcome to stockodetrading Referral Bot!*\n\n"
-        "✔️ Refer and Earn Cash!",
-        parse_mode=ParseMode.MARKDOWN
+# Main menu
+def main_menu():
+    kb = InlineKeyboardBuilder()
+    kb.button(text="💰 Balance", callback_data="balance")
+    kb.button(text="👥 Referrals", callback_data="referrals")
+    kb.button(text="🎁 Bonus", callback_data="bonus")
+    kb.button(text="💸 Withdraw", callback_data="withdraw")
+    kb.button(text="🏦 Set Wallet", callback_data="set_wallet")
+    kb.button(text="🛠 Support", url="https://t.me/iamrahulchn")
+    kb.adjust(2)
+    return kb.as_markup()
+
+
+# Referrals
+@dp.callback_query(F.data == "referrals")
+async def referrals(callback: types.CallbackQuery):
+    uid = callback.from_user.id
+    data = users.get(uid, {})
+    total_refs = len(data.get("refs", set()))
+    link = f"https://t.me/earningtotrade_bot?start={uid}"
+    msg = (
+        f"➡️ <b>Total invites:</b> {total_refs}\n"
+        f"🚥 <b>Per Referral:</b> ₹{REF_REWARD}\n"
+        f"🔗 <b>Your invite link:</b> {link}"
     )
-
-    if await is_user_subscribed(user_id):
-        await message.answer("🎉 You're already subscribed! Here's your dashboard:", reply_markup=main_menu_keyboard())
-    else:
-        await message.answer(
-            "🛡️ *Subscribe Channels if you want to start the bot and earn from it:*\n\n"
-            "✅ @stockode_learning\n"
-            "✅ @stockode.official",
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=join_channels_keyboard()
-        )
+    await callback.message.answer(msg)
 
 
-@router.callback_query(F.data == "check_subscriptions")
-async def check_subscriptions(callback_query: types.CallbackQuery):
-    user_id = callback_query.from_user.id
-    if await is_user_subscribed(user_id):
-        await callback_query.message.answer("🎉 You're now verified! Here's your dashboard:", reply_markup=main_menu_keyboard())
-        await callback_query.answer("✅ Subscribed successfully!")
-    else:
-        await callback_query.message.answer("❗ Please join *all* channels first:", parse_mode=ParseMode.MARKDOWN, reply_markup=join_channels_keyboard())
-        await callback_query.answer("❌ You're not subscribed to all required channels.")
+# Balance
+@dp.callback_query(F.data == "balance")
+async def balance(callback: types.CallbackQuery):
+    uid = callback.from_user.id
+    refs = users.get(uid, {}).get("refs", set())
+    bal = len(refs) * REF_REWARD
+    await callback.message.answer(f"💰 <b>Your balance is ₹{bal}</b>")
 
 
-@router.callback_query()
-async def handle_buttons(callback_query: types.CallbackQuery):
-    data = callback_query.data
-    user_id = callback_query.from_user.id
-
-    if data == "balance":
-        await callback_query.message.answer("💰 Your balance: ₹0")
-
-    elif data == "referrals":
-        link = f"https://t.me/earningtotrade_bot?start={user_id}"
-        await callback_query.message.answer(
-            f"➡️ *Total invites:* 0\n"
-            f"🚥 *Per Referral:* ₹25\n"
-            f"🔗 *Your referral link:* {link}",
-            parse_mode=ParseMode.MARKDOWN
-        )
-
-    elif data == "bonus":
-        await callback_query.message.answer("🎁 Bonus feature coming soon!")
-
-    elif data == "withdraw":
-        await callback_query.message.answer("💸 Minimum withdrawal is ₹500. Withdrawal panel coming soon!")
-
-    elif data == "set_wallet":
-        await callback_query.message.answer("👛 Please reply with your wallet UPI ID to set it.")
-
-    elif data == "support":
-        await callback_query.message.answer("🛠 Contact @stockode_support for help.")
+# Bonus (not yet implemented)
+@dp.callback_query(F.data == "bonus")
+async def bonus(callback: types.CallbackQuery):
+    await callback.message.answer("🎁 Bonus system coming soon!")
 
 
+# Withdraw (not yet implemented)
+@dp.callback_query(F.data == "withdraw")
+async def withdraw(callback: types.CallbackQuery):
+    await callback.message.answer("💸 Withdrawal system coming soon!")
+
+
+# Set Wallet (not yet implemented)
+@dp.callback_query(F.data == "set_wallet")
+async def set_wallet(callback: types.CallbackQuery):
+    await callback.message.answer("🏦 Wallet setup coming soon!")
+
+
+# Background polling
 async def main():
-    dp.include_router(router)
-    await dp.start_polling(bot)
+    try:
+        await dp.start_polling(bot)
+    finally:
+        await bot.session.close()
 
 
 if __name__ == "__main__":
+    PORT = int(os.getenv("PORT", 8000))
     asyncio.run(main())
