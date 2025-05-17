@@ -43,7 +43,7 @@ async def start(message: Message):
         [InlineKeyboardButton(text="✅ @stockodeofficial", url="https://t.me/stockodeofficial")],
         [InlineKeyboardButton(text="📸 Follow on Instagram", url="https://instagram.com/stockode.official")],
         [InlineKeyboardButton(text="▶️ Subscribe on YouTube", url="https://youtube.com/@stockodeofficial")],
-        [InlineKeyboardButton(text="✔️ Done Subscribed! Click ✅Check", callback_data="check_subs")],
+        [InlineKeyboardButton(text="✔️ Done Subscribed! Click ✅Check", callback_data="check_subs")]
     
     ])
     await message.answer(welcome, reply_markup=sub_buttons)
