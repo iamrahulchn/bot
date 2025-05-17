@@ -1,17 +1,20 @@
 import os
 import logging
 import asyncio
-from aiogram import Bot, Dispatcher, types
+from aiogram import Bot, Dispatcher, types, F
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.utils import executor
+from aiogram.enums import ParseMode
+from aiogram.filters import CommandStart
+from aiogram import Router
 
 logging.basicConfig(level=logging.INFO)
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = int(os.getenv("ADMIN_ID", 7473008936))  # Default to your ID if not set
+ADMIN_ID = int(os.getenv("ADMIN_ID", 7473008936))
 
 bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher(bot)
+dp = Dispatcher()
+router = Router()
 
 REQUIRED_CHANNELS = ["stockode_learning", "stockode.official"]
 
@@ -48,13 +51,13 @@ async def is_user_subscribed(user_id: int):
     return True
 
 
-@dp.message_handler(commands=['start'])
-async def start(message: types.Message):
+@router.message(CommandStart())
+async def start_handler(message: types.Message):
     user_id = message.from_user.id
     await message.answer(
         "👋 *Welcome to stockodetrading Referral Bot!*\n\n"
         "✔️ Refer and Earn Cash!",
-        parse_mode="Markdown"
+        parse_mode=ParseMode.MARKDOWN
     )
 
     if await is_user_subscribed(user_id):
@@ -64,55 +67,55 @@ async def start(message: types.Message):
             "🛡️ *Subscribe Channels if you want to start the bot and earn from it:*\n\n"
             "✅ @stockode_learning\n"
             "✅ @stockode.official",
-            parse_mode="Markdown",
+            parse_mode=ParseMode.MARKDOWN,
             reply_markup=join_channels_keyboard()
         )
 
 
-@dp.callback_query_handler(lambda c: c.data == 'check_subscriptions')
-async def check_subscription(callback_query: types.CallbackQuery):
+@router.callback_query(F.data == "check_subscriptions")
+async def check_subscriptions(callback_query: types.CallbackQuery):
     user_id = callback_query.from_user.id
     if await is_user_subscribed(user_id):
-        await bot.answer_callback_query(callback_query.id, "✅ Subscribed successfully!")
-        await bot.send_message(user_id, "🎉 You're now verified! Here's your dashboard:", reply_markup=main_menu_keyboard())
+        await callback_query.message.answer("🎉 You're now verified! Here's your dashboard:", reply_markup=main_menu_keyboard())
+        await callback_query.answer("✅ Subscribed successfully!")
     else:
-        await bot.answer_callback_query(callback_query.id, "❌ You're not subscribed to all required channels.")
-        await bot.send_message(user_id, "❗ Please join *all* channels first:", parse_mode="Markdown", reply_markup=join_channels_keyboard())
+        await callback_query.message.answer("❗ Please join *all* channels first:", parse_mode=ParseMode.MARKDOWN, reply_markup=join_channels_keyboard())
+        await callback_query.answer("❌ You're not subscribed to all required channels.")
 
 
-@dp.callback_query_handler()
-async def menu_buttons(callback_query: types.CallbackQuery):
+@router.callback_query()
+async def handle_buttons(callback_query: types.CallbackQuery):
     data = callback_query.data
     user_id = callback_query.from_user.id
 
     if data == "balance":
-        await bot.send_message(user_id, "💰 Your balance: ₹0")
+        await callback_query.message.answer("💰 Your balance: ₹0")
 
     elif data == "referrals":
         link = f"https://t.me/earningtotrade_bot?start={user_id}"
-        await bot.send_message(
-            user_id,
+        await callback_query.message.answer(
             f"➡️ *Total invites:* 0\n"
             f"🚥 *Per Referral:* ₹25\n"
             f"🔗 *Your referral link:* {link}",
-            parse_mode="Markdown"
+            parse_mode=ParseMode.MARKDOWN
         )
 
     elif data == "bonus":
-        await bot.send_message(user_id, "🎁 Bonus feature coming soon!")
+        await callback_query.message.answer("🎁 Bonus feature coming soon!")
 
     elif data == "withdraw":
-        await bot.send_message(user_id, "💸 Minimum withdrawal is ₹500. Withdrawal panel coming soon!")
+        await callback_query.message.answer("💸 Minimum withdrawal is ₹500. Withdrawal panel coming soon!")
 
     elif data == "set_wallet":
-        await bot.send_message(user_id, "👛 Please reply with your wallet UPI ID to set it.")
+        await callback_query.message.answer("👛 Please reply with your wallet UPI ID to set it.")
 
     elif data == "support":
-        await bot.send_message(user_id, "🛠 Contact @stockode_support for help.")
+        await callback_query.message.answer("🛠 Contact @stockode_support for help.")
 
 
 async def main():
-    await dp.start_polling()
+    dp.include_router(router)
+    await dp.start_polling(bot)
 
 
 if __name__ == "__main__":
