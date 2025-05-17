@@ -38,7 +38,7 @@ async def start(message: Message):
     )
     sub_buttons = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ @stockode_learning", url="https://t.me/stockode_learning")],
-        [InlineKeyboardButton(text="✅ @stockode.official", url="https://t.me/stockode.official")],
+        [InlineKeyboardButton(text="✅ @stockodeofficial", url="https://t.me/stockodeofficial")],
         [InlineKeyboardButton(text="✔️ Done Subscribed! Click ✅Check", callback_data="check_subs")]
     ])
     await message.answer(welcome, reply_markup=sub_buttons)
