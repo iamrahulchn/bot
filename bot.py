@@ -34,12 +34,17 @@ async def start(message: Message):
     welcome = (
         "🤖 <b>Welcome to stockodetrading Referral Bot</b>\n\n"
         "✔️ Refer and Earn Cash\n\n"
-        "🛡️ <b>Subscribe Channels if you want to start the bot and earn from it</b>"
+        "🛡️ <b>Subscribe to all platforms to activate your referral bot:</b>\n\n"
+        "✅ Telegram Channels (Required)\n📸 Instagram & ▶️ YouTube (Optional but appreciated!)"
+
     )
     sub_buttons = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ @stockode_learning", url="https://t.me/stockode_learning")],
         [InlineKeyboardButton(text="✅ @stockodeofficial", url="https://t.me/stockodeofficial")],
-        [InlineKeyboardButton(text="✔️ Done Subscribed! Click ✅Check", callback_data="check_subs")]
+        [InlineKeyboardButton(text="✔️ Done Subscribed! Click ✅Check", callback_data="check_subs")],
+        [InlineKeyboardButton(text="📸 Follow on Instagram", url="https://instagram.com/stockode.official")],
+        [InlineKeyboardButton(text="▶️ Subscribe on YouTube", url="https://youtube.com/@stockodeofficial")]
+    
     ])
     await message.answer(welcome, reply_markup=sub_buttons)
 
