@@ -1,6 +1,6 @@
 from aiogram import types
 from aiogram.filters import CommandStart
-from aiogram import Dispatcher
+from aiogram import Dispatcher, F
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 
@@ -8,7 +8,7 @@ from aiogram.fsm.state import StatesGroup, State
 class WalletState(StatesGroup):
     waiting_for_wallet = State()
 
-# Register all message handlers
+# ✅ Single, clean handler registration function
 def register_handlers(dp: Dispatcher, users: dict, save_users, REF_REWARD: int, MIN_WITHDRAW: int):
     @dp.message(CommandStart())
     async def start_command(message: types.Message):
@@ -35,15 +35,14 @@ def register_handlers(dp: Dispatcher, users: dict, save_users, REF_REWARD: int, 
         )
         await message.answer("🤖 Welcome to the earning bot!\nPlease select an option:", reply_markup=keyboard)
 
-   def register_handlers(dp, users, save_users, REF_REWARD, MIN_WITHDRAW):
     @dp.message(F.text == "Balance")
     async def balance(message: types.Message):
         uid = str(message.from_user.id)
         refs = users.get(uid, {}).get("refs", [])
         bal = len(refs) * REF_REWARD
         await message.answer(f"💰 Your balance is ₹{bal}")
-    
-    @dp.message(lambda message: message.text == "Referrals")
+
+    @dp.message(F.text == "Referrals")
     async def referrals(message: types.Message):
         uid = str(message.from_user.id)
         data = users.get(uid, {})
@@ -56,11 +55,11 @@ def register_handlers(dp: Dispatcher, users: dict, save_users, REF_REWARD: int, 
         )
         await message.answer(msg)
 
-    @dp.message(lambda message: message.text == "Bonus")
+    @dp.message(F.text == "Bonus")
     async def bonus(message: types.Message):
         await message.answer("🎁 No bonus available right now.")
 
-    @dp.message(lambda message: message.text == "Withdraw")
+    @dp.message(F.text == "Withdraw")
     async def withdraw(message: types.Message):
         uid = str(message.from_user.id)
         user = users.get(uid, {})
@@ -77,10 +76,8 @@ def register_handlers(dp: Dispatcher, users: dict, save_users, REF_REWARD: int, 
             return
 
         await message.answer(f"✅ Withdrawal request for ₹{bal} submitted to {wallet}.")
-        # Notify admin (replace with your admin ID logic)
-        # await bot.send_message(admin_id, f"New withdrawal request from {uid}: ₹{bal} to {wallet}")
 
-    @dp.message(lambda message: message.text == "Set Wallet")
+    @dp.message(F.text == "Set Wallet")
     async def set_wallet(message: types.Message, state: FSMContext):
         await message.answer("🔐 Please reply with your UPI ID or Wallet address.")
         await state.set_state(WalletState.waiting_for_wallet)
@@ -93,6 +90,6 @@ def register_handlers(dp: Dispatcher, users: dict, save_users, REF_REWARD: int, 
         await message.answer("✅ Your wallet has been saved successfully!")
         await state.clear()
 
-    @dp.message(lambda message: message.text == "Support")
+    @dp.message(F.text == "Support")
     async def support(message: types.Message):
         await message.answer("📞 Contact support: @iamrahulchn")
