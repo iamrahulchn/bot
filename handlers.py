@@ -1,30 +1,27 @@
-import json
-import os
 from aiogram import types
 from aiogram.filters import CommandStart
 from aiogram import Dispatcher
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import StatesGroup, State
 
-# --- Save/Load Wallets from JSON File ---
-WALLET_FILE = "wallets.json"
+# FSM for wallet setting
+class WalletState(StatesGroup):
+    waiting_for_wallet = State()
 
-def load_wallets():
-    if os.path.exists(WALLET_FILE):
-        with open(WALLET_FILE, "r") as f:
-            return json.load(f)
-    return {}
-
-def save_wallets(wallets):
-    with open(WALLET_FILE, "w") as f:
-        json.dump(wallets, f)
-
-wallets = load_wallets()
-
-
-# --- Handler Registration ---
-def register_handlers(dp: Dispatcher):
-
+# Register all message handlers
+def register_handlers(dp: Dispatcher, users: dict, save_users, REF_REWARD: int, MIN_WITHDRAW: int):
     @dp.message(CommandStart())
     async def start_command(message: types.Message):
+        uid = str(message.from_user.id)
+        if uid not in users:
+            ref_by = None
+            if message.text.startswith("/start "):
+                ref = message.text.split(" ")[1]
+                if ref != uid:
+                    ref_by = ref
+            users[uid] = {"ref_by": ref_by, "wallet": "", "refs": []}
+            save_users()
+
         keyboard = types.ReplyKeyboardMarkup(
             keyboard=[
                 [types.KeyboardButton(text="Balance")],
@@ -41,15 +38,22 @@ def register_handlers(dp: Dispatcher):
     @dp.message(lambda message: message.text == "Balance")
     async def balance(message: types.Message):
         uid = str(message.from_user.id)
-        ref_count = 0  # Placeholder – you can replace with actual logic
-        bal = ref_count * 25
+        refs = users.get(uid, {}).get("refs", [])
+        bal = len(refs) * REF_REWARD
         await message.answer(f"💰 Your balance is ₹{bal}")
 
     @dp.message(lambda message: message.text == "Referrals")
     async def referrals(message: types.Message):
         uid = str(message.from_user.id)
+        data = users.get(uid, {})
+        total_refs = len(data.get("refs", []))
         link = f"https://t.me/earningtotrade_bot?start={uid}"
-        await message.answer(f"👥 You have 0 referrals.\n🚀 Share your link to earn ₹25/referral:\n\n🔗 {link}")
+        msg = (
+            f"➡️ Total invites: {total_refs}\n"
+            f"🚥 Per Referral: ₹{REF_REWARD}\n"
+            f"🔗 Your invite link:\n{link}"
+        )
+        await message.answer(msg)
 
     @dp.message(lambda message: message.text == "Bonus")
     async def bonus(message: types.Message):
@@ -57,23 +61,36 @@ def register_handlers(dp: Dispatcher):
 
     @dp.message(lambda message: message.text == "Withdraw")
     async def withdraw(message: types.Message):
-        await message.answer("❌ Minimum withdrawal is ₹500.\nEarn more to withdraw.")
+        uid = str(message.from_user.id)
+        user = users.get(uid, {})
+        refs = user.get("refs", [])
+        bal = len(refs) * REF_REWARD
+        wallet = user.get("wallet", "")
+
+        if not wallet:
+            await message.answer("⚠️ You must set your wallet first using 'Set Wallet'.")
+            return
+
+        if bal < MIN_WITHDRAW:
+            await message.answer(f"❌ Minimum withdrawal is ₹{MIN_WITHDRAW}. You only have ₹{bal}.")
+            return
+
+        await message.answer(f"✅ Withdrawal request for ₹{bal} submitted to {wallet}.")
+        # Notify admin (replace with your admin ID logic)
+        # await bot.send_message(admin_id, f"New withdrawal request from {uid}: ₹{bal} to {wallet}")
 
     @dp.message(lambda message: message.text == "Set Wallet")
-    async def set_wallet(message: types.Message):
-        await message.answer("🔐 Please reply with your UPI ID or Wallet address.\n(Just type it in your next message)")
+    async def set_wallet(message: types.Message, state: FSMContext):
+        await message.answer("🔐 Please reply with your UPI ID or Wallet address.")
+        await state.set_state(WalletState.waiting_for_wallet)
 
-    @dp.message(lambda message: message.reply_to_message is None and message.text)
-    async def save_wallet(message: types.Message):
+    @dp.message(WalletState.waiting_for_wallet)
+    async def process_wallet(message: types.Message, state: FSMContext):
         uid = str(message.from_user.id)
-        text = message.text.strip()
-
-        if "@" in text or "." in text:  # Simple wallet validation (UPI or email-style)
-            wallets[uid] = text
-            save_wallets(wallets)
-            await message.answer(f"✅ Wallet address saved: <code>{text}</code>", parse_mode="HTML")
-        else:
-            await message.answer("⚠️ That doesn't look like a valid wallet or UPI ID. Please try again.")
+        users[uid]["wallet"] = message.text.strip()
+        save_users()
+        await message.answer("✅ Your wallet has been saved successfully!")
+        await state.clear()
 
     @dp.message(lambda message: message.text == "Support")
     async def support(message: types.Message):
