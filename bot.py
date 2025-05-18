@@ -80,7 +80,7 @@ async def check_subs(callback: types.CallbackQuery):
     uid = callback.from_user.id
     not_joined = []
 
-  for channel in CHANNELS:
+    for channel in CHANNELS:
         try:
             member = await bot.get_chat_member(chat_id=channel, user_id=uid)
             if member.status not in ["member", "administrator", "creator"]:
