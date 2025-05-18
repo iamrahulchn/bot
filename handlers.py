@@ -94,4 +94,4 @@ def register_handlers(dp: Dispatcher, users: dict, save_users, REF_REWARD: int, 
 
     @dp.message(lambda message: message.text == "Support")
     async def support(message: types.Message):
-        await message.answer("📞 Contact support: @stockode_support")
+        await message.answer("📞 Contact support: @iamrahulchn")
