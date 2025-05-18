@@ -9,8 +9,13 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiohttp import web
 import json
+from handlers import register_handlers
 from dotenv import load_dotenv
 load_dotenv()
+
+# After creating Dispatcher
+register_handlers(dp)
+
 
 
 API_TOKEN = os.getenv("BOT_TOKEN")
