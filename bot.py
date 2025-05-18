@@ -8,6 +8,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiohttp import web
+from aiogram.utils.executor import start_webhook 
 import json
 from handlers import register_handlers
 from dotenv import load_dotenv
@@ -17,17 +18,20 @@ load_dotenv()
 register_handlers(dp)
 
 
-
+# Load environment variables
 API_TOKEN = os.getenv("BOT_TOKEN")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # e.g. https://yourdomain.com/webhook/<token>
 PORT = int(os.getenv("PORT", 10000))
 CHANNELS = ["@stockodeofficial"]
+
+# Users and config
 REF_REWARD = 25
 MIN_WITHDRAW = 500
 admin_id = 7473008936
 
+# Users file
+import json
 DATA_FILE = "users.json"
-
 def load_users():
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r") as f:
@@ -43,14 +47,14 @@ users = load_users()  # user_id: {'ref_by': user_id, 'wallet': str, 'refs': list
 
 from aiogram.client.default import DefaultBotProperties
 
-bot = Bot(
-    token=API_TOKEN,
-    default=DefaultBotProperties(parse_mode=ParseMode.HTML)
-)
-
+# Bot setup
+bot = Bot(token=API_TOKEN, parse_mode=ParseMode.HTML)
 dp = Dispatcher(storage=MemoryStorage())
 
-users = {}  # user_id: {'ref_by': user_id, 'wallet': str, 'refs': set()}
+
+
+# Register handlers
+register_handlers(dp, users, save_users, REF_REWARD, MIN_WITHDRAW)
 
 # FSM state for wallet input
 class WalletState(StatesGroup):
