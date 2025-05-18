@@ -7,12 +7,31 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
+from aiohttp import web
+import json
 
 API_TOKEN = os.getenv("BOT_TOKEN")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # e.g. https://yourdomain.com/webhook/<token>
+PORT = int(os.getenv("PORT", 8000))
 CHANNELS = ["@stockodeofficial"]
 REF_REWARD = 25
 MIN_WITHDRAW = 500
 admin_id = 7473008936
+
+DATA_FILE = "users.json"
+
+def load_users():
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE, "r") as f:
+            return json.load(f)
+    return {}
+
+def save_users():
+    with open(DATA_FILE, "w") as f:
+        json.dump(users, f)
+
+users = load_users()  # user_id: {'ref_by': user_id, 'wallet': str, 'refs': list()}
+
 
 bot = Bot(token=API_TOKEN, parse_mode=ParseMode.HTML)
 dp = Dispatcher(storage=MemoryStorage())
@@ -27,16 +46,16 @@ class WalletState(StatesGroup):
 # Start command
 @dp.message(F.text.startswith("/start"))
 async def start(message: Message):
-    uid = message.from_user.id
+    uid = str(message.from_user.id)
     if uid not in users:
         ref_by = None
-        if message.text.startswith("/start "):
-            ref = message.text.split(" ")[1]
-            if ref != str(uid):
-                ref_by = int(ref)
-        users[uid] = {"ref_by": ref_by, "wallet": "", "refs": set()}
-        if ref_by and ref_by in users:
-            users[ref_by]["refs"].add(uid)
+        parts = message.text.split(" ")
+        if len(parts) > 1:
+            ref = parts[1]
+            if ref != uid:
+                ref_by = ref
+        users[uid] = {"ref_by": ref_by, "wallet": "", "refs": []}
+        save_users()
 
     welcome = (
         "🤖 <b>Welcome to Referwala By Stockode Referral Bot</b>\n\n"
@@ -61,21 +80,23 @@ async def check_subs(callback: types.CallbackQuery):
     uid = callback.from_user.id
     not_joined = []
 
-    for channel in CHANNELS:
+  for channel in CHANNELS:
         try:
-            member = await bot.get_chat_member(channel, uid)
+            member = await bot.get_chat_member(chat_id=channel, user_id=uid)
             if member.status not in ["member", "administrator", "creator"]:
                 not_joined.append(channel)
-        except:
+        except Exception:
             not_joined.append(channel)
 
     if not_joined:
-        await callback.message.answer(
-            "❌ You must join all channels to start using the bot.\nPlease join and click ✅Check again."
+        await callback.answer(
+            "❌ You must join all channels to start using the bot. Please join and try again.",
+            show_alert=True
         )
     else:
+        await callback.answer("✅ Subscription verified! Welcome 🎉", show_alert=True)
         await callback.message.answer(
-            "✅ Subscription verified! Welcome 🎉\nChoose an option below:",
+            "Choose an option below:",
             reply_markup=main_menu()
         )
 
@@ -98,7 +119,7 @@ def main_menu():
 async def referrals(callback: types.CallbackQuery):
     uid = callback.from_user.id
     data = users.get(uid, {})
-    total_refs = len(data.get("refs", set()))
+    total_refs = len(data.get("refs", []))
     link = f"https://t.me/earningtotrade_bot?start={uid}"
     msg = (
         f"➡️ <b>Total invites:</b> {total_refs}\n"
@@ -120,14 +141,29 @@ async def balance(callback: types.CallbackQuery):
 # Bonus (not yet implemented)
 @dp.callback_query(F.data == "bonus")
 async def bonus(callback: types.CallbackQuery):
-    await callback.message.answer("🎁 Bonus system coming soon!")
+    await callback.message.answer("🎁 You are not qualified for Bonus!")
 
 
-# Withdraw (not yet implemented)
+
+# Withdraw (function improved)
 @dp.callback_query(F.data == "withdraw")
 async def withdraw(callback: types.CallbackQuery):
-    await callback.message.answer("💸 Withdrawal system coming soon!")
+    uid = str(callback.from_user.id)
+    user = users.get(uid, {})
+    refs = user.get("refs", [])
+    bal = len(refs) * REF_REWARD
+    wallet = user.get("wallet", "")
 
+    if not wallet:
+        await callback.message.answer("⚠️ You must set your wallet first using 🏦 Set Wallet.")
+        return
+
+    if bal < MIN_WITHDRAW:
+        await callback.message.answer(f"❌ Minimum withdrawal is ₹{MIN_WITHDRAW}. You only have ₹{bal}.")
+        return
+
+    await callback.message.answer(f"✅ Withdrawal request for ₹{bal} submitted to {wallet}.")
+    await bot.send_message(admin_id, f"💸 New withdrawal request:\nUser: {uid}\nAmount: ₹{bal}\nWallet: {wallet}")
 
 # 💳 Set Wallet
 @dp.callback_query(F.data == "set_wallet")
@@ -136,27 +172,40 @@ async def ask_wallet(callback: types.CallbackQuery, state: FSMContext):
     await callback.message.answer("💳 Please enter your wallet address (e.g., UPI ID or Paytm/PhonePe/Bank):")
 
 @dp.message(WalletState.waiting_for_wallet)
-async def save_wallet(message: types.Message, state: FSMContext):
-    uid = message.from_user.id
-    wallet = message.text.strip()
-
-    if uid in users:
-        users[uid]["wallet"] = wallet
-    else:
-        users[uid] = {"ref_by": None, "wallet": wallet, "refs": set()}
-
-    await message.answer(f"✅ Wallet address saved: <code>{wallet}</code>")
+async def process_wallet(message: types.Message, state: FSMContext):
+    uid = str(message.from_user.id)
+    users[uid]["wallet"] = message.text.strip()
+    save_users()
+    await message.answer("✅ Your wallet has been saved successfully!")
     await state.clear()
 
 
-# Background polling
-async def main():
-    try:
-        await dp.start_polling(bot)
-    finally:
-        await bot.session.close()
 
+# --- Webhook handler and server setup ---
+
+async def on_startup(app):
+    await bot.set_webhook(WEBHOOK_URL)
+
+async def on_shutdown(app):
+    await bot.delete_webhook()
+    await bot.session.close()
+
+async def handle_webhook(request):
+    if request.match_info.get('token') == API_TOKEN:
+        update = await request.json()
+        telegram_update = types.Update.to_object(update)
+        await dp.process_update(telegram_update)
+        return web.Response(text="OK")
+    else:
+        return web.Response(status=403, text="Forbidden")
+
+app = web.Application()
+app.router.add_post(f'/webhook/{API_TOKEN}', handle_webhook)
+app.on_startup.append(on_startup)
+app.on_shutdown.append(on_shutdown)
 
 if __name__ == "__main__":
-    PORT = int(os.getenv("PORT", 10000))
-    asyncio.run(main())
+    web.run_app(app, port=PORT)
+
+
+
