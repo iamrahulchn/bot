@@ -28,7 +28,8 @@ dp = Dispatcher(storage=MemoryStorage())
 
 # After creating Dispatcher
 
-register_handlers(dp)
+register_handlers(dp, users, save_users, REF_REWARD, MIN_WITHDRAW)
+
 
 
 
