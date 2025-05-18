@@ -35,13 +35,14 @@ def register_handlers(dp: Dispatcher, users: dict, save_users, REF_REWARD: int, 
         )
         await message.answer("🤖 Welcome to the earning bot!\nPlease select an option:", reply_markup=keyboard)
 
-    @dp.message(lambda message: message.text == "Balance")
+   def register_handlers(dp, users, save_users, REF_REWARD, MIN_WITHDRAW):
+    @dp.message(F.text == "Balance")
     async def balance(message: types.Message):
         uid = str(message.from_user.id)
         refs = users.get(uid, {}).get("refs", [])
         bal = len(refs) * REF_REWARD
         await message.answer(f"💰 Your balance is ₹{bal}")
-
+    
     @dp.message(lambda message: message.text == "Referrals")
     async def referrals(message: types.Message):
         uid = str(message.from_user.id)
