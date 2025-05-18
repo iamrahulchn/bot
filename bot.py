@@ -9,11 +9,11 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiohttp import web 
 import json
-from handlers import register_handlers
 from dotenv import load_dotenv
 load_dotenv()
 
 # After creating Dispatcher
+from handlers import register_handlers
 register_handlers(dp)
 
 
@@ -22,6 +22,11 @@ API_TOKEN = os.getenv("BOT_TOKEN")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # e.g. https://yourdomain.com/webhook/<token>
 PORT = int(os.getenv("PORT", 10000))
 CHANNELS = ["@stockodeofficial"]
+
+# Bot setup
+bot = Bot(token=API_TOKEN, parse_mode=ParseMode.HTML)
+dp = Dispatcher(storage=MemoryStorage())
+
 
 # Users and config
 REF_REWARD = 25
@@ -46,9 +51,6 @@ users = load_users()  # user_id: {'ref_by': user_id, 'wallet': str, 'refs': list
 
 from aiogram.client.default import DefaultBotProperties
 
-# Bot setup
-bot = Bot(token=API_TOKEN, parse_mode=ParseMode.HTML)
-dp = Dispatcher(storage=MemoryStorage())
 
 
 
