@@ -12,7 +12,7 @@ import json
 
 API_TOKEN = os.getenv("BOT_TOKEN")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # e.g. https://yourdomain.com/webhook/<token>
-PORT = int(os.getenv("PORT", 8000))
+PORT = int(os.getenv("PORT", 10000))
 CHANNELS = ["@stockodeofficial"]
 REF_REWARD = 25
 MIN_WITHDRAW = 500
@@ -33,7 +33,13 @@ def save_users():
 users = load_users()  # user_id: {'ref_by': user_id, 'wallet': str, 'refs': list()}
 
 
-bot = Bot(token=API_TOKEN, parse_mode=ParseMode.HTML)
+from aiogram.client.default import DefaultBotProperties
+
+bot = Bot(
+    token=API_TOKEN,
+    default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+)
+
 dp = Dispatcher(storage=MemoryStorage())
 
 users = {}  # user_id: {'ref_by': user_id, 'wallet': str, 'refs': set()}
