@@ -9,6 +9,9 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiohttp import web
 import json
+from dotenv import load_dotenv
+load_dotenv()
+
 
 API_TOKEN = os.getenv("BOT_TOKEN")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # e.g. https://yourdomain.com/webhook/<token>
