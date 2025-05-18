@@ -8,13 +8,11 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiohttp import web 
+from handlers import register_handlers
 import json
 from dotenv import load_dotenv
 load_dotenv()
 
-# After creating Dispatcher
-from handlers import register_handlers
-register_handlers(dp)
 
 
 # Load environment variables
@@ -26,6 +24,12 @@ CHANNELS = ["@stockodeofficial"]
 # Bot setup
 bot = Bot(token=API_TOKEN, parse_mode=ParseMode.HTML)
 dp = Dispatcher(storage=MemoryStorage())
+
+
+# After creating Dispatcher
+
+register_handlers(dp)
+
 
 
 # Users and config
